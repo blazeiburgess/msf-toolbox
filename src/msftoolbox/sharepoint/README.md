@@ -48,7 +48,7 @@ client = SharePointFileClient(
     site_url="https://your-site-url", 
     interactive_auth=True, 
     client_id="your-app-registration-client-id",
-    tenant_id="your-azure-tenant-id
+    tenant_id="your-azure-tenant-id"
     )
 ```
 
