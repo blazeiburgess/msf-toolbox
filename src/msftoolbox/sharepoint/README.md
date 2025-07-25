@@ -46,8 +46,9 @@ from sharepoint_client import SharePointFileClient
 
 client = SharePointFileClient(
     site_url="https://your-site-url", 
-    username="your-username", 
-    password="your-password"
+    interactive_auth=True, 
+    client_id="your-app-registration-client-id",
+    tenant_id="your-azure-tenant-id
     )
 ```
 
