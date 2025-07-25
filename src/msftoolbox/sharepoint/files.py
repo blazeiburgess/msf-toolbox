@@ -48,7 +48,7 @@ class SharePointFileClient:
             self.credentials = ClientCredential(client_id, client_secret)
             self.context = ClientContext(site_url).with_credentials(self.credentials)
         elif interactive_auth and client_id and tenant_id:
-            self.credentials = ClientContext(site_url).with_interactive(tenant_id, client_id)
+            self.context = ClientContext(site_url).with_interactive(tenant_id, client_id)
         else:
             raise ValueError("Either username/password, client_id/client_secret or interactive_auth/client_id/tenant_id must be provided.")
 
