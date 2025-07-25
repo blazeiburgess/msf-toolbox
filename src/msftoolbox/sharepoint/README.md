@@ -38,6 +38,21 @@ client = SharePointFileClient(
     )
 ```
 
+#### Using Interactive login
+Requires an app registration with delegated Sharepoint API permissions.
+
+```python
+from sharepoint_client import SharePointFileClient
+
+client = SharePointFileClient(
+    site_url="https://your-site-url", 
+    interactive_auth=True, 
+    client_id="your-app-registration-client-id",
+    tenant_id="your-azure-tenant-id
+    )
+```
+
+
 ### Methods
 
 #### List Files in a Folder

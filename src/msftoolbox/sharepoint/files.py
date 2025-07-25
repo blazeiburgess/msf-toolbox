@@ -18,30 +18,40 @@ class SharePointFileClient:
         username: Optional[str] = None,
         password: Optional[str] = None,
         client_id: Optional[str] = None,
-        client_secret: Optional[str] = None
+        client_secret: Optional[str] = None,
+        interactive_auth: Optional[bool] = False,
+        tenant_id: Optional[str] = None
         ):
         """
         Initializes the SharePointClient with site URL and user credentials.
+        The Client supports three authentication methods:
+            - Non MFA enabled account using username and password
+            - App Registration using client id and client secret
+            - Interactive authentication using an app registration with delegated Sharepoint permission and a tenant id.
 
         Args:
             site_url (str): The URL of the SharePoint site.
             username (Optional[str]): The username for authentication.
             password (Optional[str]): The password for authentication.
-            client_id (Optional[str]): The client ID for app authentication.
-            client_secret (Optional[str]): The client secret for app authentication.
+            client_id (Optional[str]): The client ID for app or interactive authentication.
+            client_secret (Optional[str]): The client secret for app.
+            interactive_auth (Optional[bool]): Boolean to indicate whether to request user consent to log in.
+            tenant_id (Optional[str]): The ID for the Azure Tenant.
+
         """
         self.site_url = site_url
 
         if username and password:
             self.credentials = UserCredential(username, password)
+            self.context = ClientContext(site_url).with_credentials(self.credentials)
         elif client_id and client_secret:
             self.credentials = ClientCredential(client_id, client_secret)
+            self.context = ClientContext(site_url).with_credentials(self.credentials)
+        elif interactive_auth and client_id and tenant_id:
+            self.context = ClientContext(site_url).with_interactive(tenant_id, client_id)
         else:
-            raise ValueError("Either username/password or client_id/client_secret must be provided.")
+            raise ValueError("Either username/password, client_id/client_secret or interactive_auth/client_id/tenant_id must be provided.")
 
-        self.context = ClientContext(
-            site_url
-            ).with_credentials(self.credentials)
 
     def list_files_in_folder(
         self,
