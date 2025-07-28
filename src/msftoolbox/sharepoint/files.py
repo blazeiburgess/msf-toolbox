@@ -20,7 +20,9 @@ class SharePointFileClient:
         client_id: Optional[str] = None,
         client_secret: Optional[str] = None,
         interactive_auth: Optional[bool] = False,
-        tenant_id: Optional[str] = None
+        tenant_id: Optional[str] = None,
+        thumbprint: Optional[str] = None,
+        certificate_path: Optional[str] = None,
         ):
         """
         Initializes the SharePointClient with site URL and user credentials.
@@ -28,7 +30,7 @@ class SharePointFileClient:
             - Non MFA enabled account using username and password
             - App Registration using client id and client secret
             - Interactive authentication using an app registration with delegated Sharepoint permission and a tenant id.
-
+            - With a Certificate using the client id, tenant id, selfsigned certificate and thumbprint.
         Args:
             site_url (str): The URL of the SharePoint site.
             username (Optional[str]): The username for authentication.
@@ -37,7 +39,8 @@ class SharePointFileClient:
             client_secret (Optional[str]): The client secret for app.
             interactive_auth (Optional[bool]): Boolean to indicate whether to request user consent to log in.
             tenant_id (Optional[str]): The ID for the Azure Tenant.
-
+            thumbprint (Optional[str]): The hexadecimal thumbprint from your certificate
+            certificate_path (Optional[str]): The path to the selfsigned certificate
         """
         self.site_url = site_url
 
@@ -49,6 +52,13 @@ class SharePointFileClient:
             self.context = ClientContext(site_url).with_credentials(self.credentials)
         elif interactive_auth and client_id and tenant_id:
             self.context = ClientContext(site_url).with_interactive(tenant_id, client_id)
+        elif client_id and tenant_id and thumbprint and certificate_path:
+            self.context = ClientContext(site_url).with_client_certificate(
+                tenant = tenant_id, 
+                client_id = client_id, 
+                thumbprint = thumbprint, 
+                cert_path = certificate_path 
+                )
         else:
             raise ValueError("Either username/password, client_id/client_secret or interactive_auth/client_id/tenant_id must be provided.")
 

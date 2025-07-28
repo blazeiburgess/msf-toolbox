@@ -48,7 +48,23 @@ client = SharePointFileClient(
     site_url="https://your-site-url", 
     interactive_auth=True, 
     client_id="your-app-registration-client-id",
-    tenant_id="your-azure-tenant-id
+    tenant_id="your-azure-tenant-id"
+    )
+```
+
+#### Using Certificate login
+Requires an app registration with Sites.Selected Application permission and site membership.
+For detailed instructions, reach out the the OCA AI team. 
+
+```python
+from sharepoint_client import SharePointFileClient
+
+client = SharePointFileClient(
+    site_url="https://your-site-url", 
+    client_id="your-app-registration-client-id",
+    tenant_id="your-azure-tenant-id",
+    thumbprint="your-certificate-thumbprint",
+    certificate_path="your-self-signed-certificate"
     )
 ```
 
