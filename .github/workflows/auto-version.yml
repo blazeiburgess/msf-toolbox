@@ -1,0 +1,149 @@
+name: Auto Version Bump
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [ main ]
+
+jobs:
+  version-bump:
+    name: Create Release from Label
+    if: |
+      github.event.pull_request.merged == true &&
+      (contains(github.event.pull_request.labels.*.name, 'bump:patch') ||
+       contains(github.event.pull_request.labels.*.name, 'bump:minor') ||
+       contains(github.event.pull_request.labels.*.name, 'bump:major'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+    
+    - name: Install setuptools_scm
+      run: |
+        python -m pip install --upgrade pip
+        pip install setuptools_scm
+    
+    - name: Configure git
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+    
+    - name: Determine version bump type
+      id: bump-type
+      run: |
+        if [[ "${{ contains(github.event.pull_request.labels.*.name, 'bump:major') }}" == "true" ]]; then
+          echo "type=major" >> $GITHUB_OUTPUT
+        elif [[ "${{ contains(github.event.pull_request.labels.*.name, 'bump:minor') }}" == "true" ]]; then
+          echo "type=minor" >> $GITHUB_OUTPUT
+        elif [[ "${{ contains(github.event.pull_request.labels.*.name, 'bump:patch') }}" == "true" ]]; then
+          echo "type=patch" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Get current version from git tags
+      id: current-version
+      run: |
+        # Get the latest tag, or use 0.0.0 if no tags exist
+        CURRENT_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+        # Remove 'v' prefix if present
+        CURRENT_VERSION=${CURRENT_TAG#v}
+        echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+        echo "Current version: $CURRENT_VERSION"
+    
+    - name: Calculate new version
+      id: new-version
+      run: |
+        CURRENT_VERSION="${{ steps.current-version.outputs.version }}"
+        BUMP_TYPE="${{ steps.bump-type.outputs.type }}"
+        
+        # Split version into components
+        IFS='.' read -r -a VERSION_PARTS <<< "$CURRENT_VERSION"
+        MAJOR="${VERSION_PARTS[0]}"
+        MINOR="${VERSION_PARTS[1]}"
+        PATCH="${VERSION_PARTS[2]}"
+        
+        # Increment based on bump type
+        case "$BUMP_TYPE" in
+          major)
+            MAJOR=$((MAJOR + 1))
+            MINOR=0
+            PATCH=0
+            ;;
+          minor)
+            MINOR=$((MINOR + 1))
+            PATCH=0
+            ;;
+          patch)
+            PATCH=$((PATCH + 1))
+            ;;
+        esac
+        
+        NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+        echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+        echo "New version: $NEW_VERSION"
+    
+    - name: Create tag
+      run: |
+        git tag -a "v${{ steps.new-version.outputs.new_version }}" -m "Release v${{ steps.new-version.outputs.new_version }}"
+        git push origin "v${{ steps.new-version.outputs.new_version }}"
+    
+    - name: Generate changelog
+      id: changelog
+      run: |
+        # Get the previous tag for comparison
+        PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+        NEW_TAG="v${{ steps.new-version.outputs.new_version }}"
+        
+        # Generate changelog content
+        echo "## What's Changed" > changelog.md
+        echo "" >> changelog.md
+        
+        if [ -z "$PREVIOUS_TAG" ]; then
+          # First release
+          echo "Initial release of MSF Toolbox" >> changelog.md
+          echo "" >> changelog.md
+          # List all commits
+          git log --pretty=format:"- %s" --grep="Merge pull request" | head -20 | sed 's/Merge pull request #[0-9]* from [^ ]* //' >> changelog.md
+        else
+          # Get PR titles between tags
+          git log ${PREVIOUS_TAG}..HEAD --pretty=format:"- %s" --grep="Merge pull request" | sed 's/Merge pull request #[0-9]* from [^ ]* //' >> changelog.md
+        fi
+        
+        echo "" >> changelog.md
+        echo "### Contributors" >> changelog.md
+        echo "" >> changelog.md
+        
+        if [ -z "$PREVIOUS_TAG" ]; then
+          git log --format="- @%an" | sort -u | grep -v "actions" >> changelog.md
+        else
+          git log ${PREVIOUS_TAG}..HEAD --format="- @%an" | sort -u | grep -v "actions" >> changelog.md
+        fi
+        
+        echo "" >> changelog.md
+        if [ ! -z "$PREVIOUS_TAG" ]; then
+          echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREVIOUS_TAG}...${NEW_TAG}" >> changelog.md
+        fi
+        
+        # Output for next step
+        echo "changelog<<EOF" >> $GITHUB_OUTPUT
+        cat changelog.md >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+    
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: v${{ steps.new-version.outputs.new_version }}
+        name: Release v${{ steps.new-version.outputs.new_version }}
+        body: ${{ steps.changelog.outputs.changelog }}
+        draft: false
+        prerelease: false
