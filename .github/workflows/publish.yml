@@ -1,0 +1,215 @@
+name: Publish to PyPI
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  validate-version:
+    name: Validate Version
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Full history for setuptools_scm
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+    
+    - name: Install setuptools_scm
+      run: |
+        python -m pip install --upgrade pip
+        pip install setuptools_scm
+    
+    - name: Check version matches tag
+      run: |
+        # Get version from setuptools_scm
+        SCM_VERSION=$(python -c "from setuptools_scm import get_version; print(get_version())")
+        # Get tag from GitHub ref
+        TAG=${GITHUB_REF#refs/tags/v}
+        
+        echo "SCM Version: $SCM_VERSION"
+        echo "Git Tag: $TAG"
+        
+        # Compare versions (setuptools_scm might add local version identifiers)
+        if [[ ! "$SCM_VERSION" =~ ^"$TAG" ]]; then
+          echo "Version mismatch: setuptools_scm=$SCM_VERSION, tag=$TAG"
+          exit 1
+        fi
+        echo "Version validation passed!"
+
+  build:
+    name: Build distribution
+    needs: validate-version
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Full history for setuptools_scm
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install -U build
+    
+    - name: Build package
+      run: python -m build
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: python-package-distributions
+        path: dist/
+
+  publish-to-pypi:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    
+    steps:
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: python-package-distributions
+        path: dist/
+    
+    - name: Publish to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+
+  publish-to-testpypi:
+    name: Publish to TestPyPI (optional)
+    needs: build
+    runs-on: ubuntu-latest
+    environment: testpypi
+    permissions:
+      id-token: write
+    
+    steps:
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: python-package-distributions
+        path: dist/
+    
+    - name: Publish to TestPyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        repository-url: https://test.pypi.org/legacy/
+
+  test-pypi-install:
+    name: Test PyPI Installation
+    needs: publish-to-pypi
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+    
+    - name: Get release version
+      id: version
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/v}
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Testing installation of version: $VERSION"
+    
+    - name: Wait for PyPI availability
+      run: |
+        echo "Waiting 120 seconds for package to be available on PyPI..."
+        sleep 120
+    
+    - name: Test installation from PyPI
+      run: |
+        # Create a fresh virtual environment
+        python -m venv test-env
+        source test-env/bin/activate
+        
+        # Install from PyPI
+        pip install msftoolbox==${{ steps.version.outputs.version }}
+        
+        # Test import and version
+        python -c "
+        import msftoolbox
+        print(f'Successfully imported msftoolbox')
+        
+        # Test basic imports
+        from msftoolbox.azure import AzureKeyVault
+        from msftoolbox.sharepoint import SharepointFiles
+        from msftoolbox.dhis2 import DHIS2DataClient
+        print('All basic imports successful')
+        "
+        
+        deactivate
+    
+    - name: Create installation report
+      if: always()
+      run: |
+        if [ "${{ job.status }}" == "success" ]; then
+          echo "✅ PyPI installation test passed for version ${{ steps.version.outputs.version }}"
+        else
+          echo "❌ PyPI installation test failed for version ${{ steps.version.outputs.version }}"
+        fi
+
+  generate-changelog:
+    name: Update Release Notes
+    needs: [publish-to-pypi, test-pypi-install]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Generate changelog
+      id: changelog
+      run: |
+        # Get current and previous tags
+        CURRENT_TAG=${GITHUB_REF#refs/tags/}
+        PREVIOUS_TAG=$(git describe --tags --abbrev=0 $CURRENT_TAG^ 2>/dev/null || echo "")
+        
+        echo "Current tag: $CURRENT_TAG"
+        echo "Previous tag: $PREVIOUS_TAG"
+        
+        # Generate changelog content
+        echo "## What's Changed" > changelog.md
+        echo "" >> changelog.md
+        
+        if [ -z "$PREVIOUS_TAG" ]; then
+          # First release
+          echo "Initial release of MSF Toolbox" >> changelog.md
+        else
+          # Get commit messages between tags
+          git log ${PREVIOUS_TAG}..${CURRENT_TAG} --pretty=format:"- %s" --grep="Merge pull request" | sed 's/Merge pull request #[0-9]* from [^ ]* //' >> changelog.md
+        fi
+        
+        echo "" >> changelog.md
+        echo "### Installation" >> changelog.md
+        echo '```bash' >> changelog.md
+        echo "pip install msftoolbox==${CURRENT_TAG#v}" >> changelog.md
+        echo '```' >> changelog.md
+        echo "" >> changelog.md
+        
+        if [ ! -z "$PREVIOUS_TAG" ]; then
+          echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREVIOUS_TAG}...${CURRENT_TAG}" >> changelog.md
+        fi
+    
+    - name: Update release
+      uses: softprops/action-gh-release@v1
+      with:
+        body_path: changelog.md
+        append_body: true
