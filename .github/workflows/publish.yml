@@ -31,8 +31,13 @@ jobs:
       run: |
         # Get version from setuptools_scm
         SCM_VERSION=$(python -c "from setuptools_scm import get_version; print(get_version())")
-        # Get tag from GitHub ref
-        TAG=${GITHUB_REF#refs/tags/v}
+        # Get tag from GitHub ref, handling both with and without 'v' prefix
+        FULL_TAG=${GITHUB_REF#refs/tags/}
+        # Remove 'v' prefix if present to get clean version
+        TAG=${FULL_TAG#v}
+        
+        echo "Full tag: $FULL_TAG"
+        echo "Clean version: $TAG"
         
         python scripts/validate_version.py "$SCM_VERSION" "$TAG"
         
@@ -41,6 +46,7 @@ jobs:
           exit 1
         fi
         
+        # Output the clean version (without 'v' prefix)
         echo "version=$TAG" >> $GITHUB_OUTPUT
 
   build:
