@@ -48,8 +48,9 @@ def main():
         # Additional check: for a release tag, setuptools_scm should give us a clean version
         # when running on the exact tag commit. Different suffixes indicate different scenarios:
         #
-        # - is_devrelease (e.g., 1.2.3.dev4): The current commit is 4 commits ahead of the last tag
-        #   This typically happens during development between releases.
+        # - is_devrelease (e.g., 1.2.3.dev4): A development version indicating 4 commits
+        #   since the base version (1.2.3) was tagged. This typically happens during
+        #   development between releases.
         #
         # - post is not None (e.g., 1.2.3.post1): A post-release version, usually indicates
         #   commits after a release tag. Similar to dev but follows PEP 440 post-release format.
