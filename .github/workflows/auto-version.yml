@@ -100,6 +100,23 @@ jobs:
     - name: Generate changelog
       id: changelog
       run: |
+        # Function to extract PR title from merge commit message
+        # Handles various branch name formats and special characters
+        extract_pr_title() {
+          local commit_msg="$1"
+          # Match "Merge pull request #123 from owner/branch-name " and extract everything after
+          # The branch pattern handles: letters, numbers, -, _, ., / and other allowed GitHub branch chars
+          local pr_title=$(echo "$commit_msg" | sed -E 's/^Merge pull request #[0-9]+ from [^[:space:]]+ //')
+          
+          # Validate that we actually extracted something meaningful
+          if [ -n "$pr_title" ] && [ "$pr_title" != "$commit_msg" ]; then
+            echo "$pr_title"
+            return 0
+          else
+            return 1
+          fi
+        }
+        
         # Get the newly created tag
         NEW_TAG="v${{ steps.new-version.outputs.new_version }}"
         
@@ -122,22 +139,16 @@ jobs:
           # First release
           echo "Initial release of MSF Toolbox" >> changelog.md
           echo "" >> changelog.md
-          # List all commits - extract PR titles more robustly
+          # List all commits - extract PR titles using our function
           git log --pretty=format:"%s" | grep -E "^Merge pull request #[0-9]+" | head -20 | while read -r line; do
-            # Extract PR title after the branch name
-            PR_TITLE=$(echo "$line" | sed -E 's/^Merge pull request #[0-9]+ from [^[:space:]]+ //')
-            # Only add if we got a meaningful title
-            if [ -n "$PR_TITLE" ] && [ "$PR_TITLE" != "$line" ]; then
+            if PR_TITLE=$(extract_pr_title "$line"); then
               echo "- $PR_TITLE" >> changelog.md
             fi
           done
         else
-          # Get PR titles between tags - more robust extraction
+          # Get PR titles between tags - using our function for consistency
           git log ${PREVIOUS_TAG}..${NEW_TAG} --pretty=format:"%s" | grep -E "^Merge pull request #[0-9]+" | while read -r line; do
-            # Extract PR title after the branch name
-            PR_TITLE=$(echo "$line" | sed -E 's/^Merge pull request #[0-9]+ from [^[:space:]]+ //')
-            # Only add if we got a meaningful title
-            if [ -n "$PR_TITLE" ] && [ "$PR_TITLE" != "$line" ]; then
+            if PR_TITLE=$(extract_pr_title "$line"); then
               echo "- $PR_TITLE" >> changelog.md
             fi
           done
