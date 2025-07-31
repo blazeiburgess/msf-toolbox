@@ -139,19 +139,25 @@ jobs:
           # First release
           echo "Initial release of MSF Toolbox" >> changelog.md
           echo "" >> changelog.md
-          # List all commits - extract PR titles using our function
-          git log --pretty=format:"%s" | grep -E "^Merge pull request #[0-9]+" | head -20 | while read -r line; do
-            if PR_TITLE=$(extract_pr_title "$line"); then
-              echo "- $PR_TITLE" >> changelog.md
+          # List all commits - store output first to avoid subshell issues
+          MERGE_COMMITS=$(git log --pretty=format:"%s" | grep -E "^Merge pull request #[0-9]+" | head -20)
+          while IFS= read -r line; do
+            if [ -n "$line" ]; then
+              if PR_TITLE=$(extract_pr_title "$line"); then
+                echo "- $PR_TITLE" >> changelog.md
+              fi
             fi
-          done
+          done <<< "$MERGE_COMMITS"
         else
-          # Get PR titles between tags - using our function for consistency
-          git log ${PREVIOUS_TAG}..${NEW_TAG} --pretty=format:"%s" | grep -E "^Merge pull request #[0-9]+" | while read -r line; do
-            if PR_TITLE=$(extract_pr_title "$line"); then
-              echo "- $PR_TITLE" >> changelog.md
+          # Get PR titles between tags - store output first to avoid subshell issues
+          MERGE_COMMITS=$(git log ${PREVIOUS_TAG}..${NEW_TAG} --pretty=format:"%s" | grep -E "^Merge pull request #[0-9]+")
+          while IFS= read -r line; do
+            if [ -n "$line" ]; then
+              if PR_TITLE=$(extract_pr_title "$line"); then
+                echo "- $PR_TITLE" >> changelog.md
+              fi
             fi
-          done
+          done <<< "$MERGE_COMMITS"
         fi
         
         echo "" >> changelog.md
