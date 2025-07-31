@@ -100,9 +100,17 @@ jobs:
     - name: Generate changelog
       id: changelog
       run: |
-        # Get the previous tag for comparison
-        PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+        # Get the newly created tag
         NEW_TAG="v${{ steps.new-version.outputs.new_version }}"
+        
+        # Get the previous tag - using tag list to find the tag before our new one
+        # This works correctly even when HEAD is not yet tagged
+        PREVIOUS_TAG=$(git tag --sort=-version:refname | grep -A1 "^${NEW_TAG}$" | tail -1 2>/dev/null || echo "")
+        
+        # If that didn't work (e.g., we're the first tag), try getting any previous tag
+        if [ -z "$PREVIOUS_TAG" ] || [ "$PREVIOUS_TAG" = "$NEW_TAG" ]; then
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 ${NEW_TAG}^ 2>/dev/null || echo "")
+        fi
         
         # Generate changelog content
         echo "## What's Changed" > changelog.md
@@ -112,11 +120,25 @@ jobs:
           # First release
           echo "Initial release of MSF Toolbox" >> changelog.md
           echo "" >> changelog.md
-          # List all commits
-          git log --pretty=format:"- %s" --grep="Merge pull request" | head -20 | sed 's/Merge pull request #[0-9]* from [^ ]* //' >> changelog.md
+          # List all commits - extract PR titles more robustly
+          git log --pretty=format:"%s" | grep -E "^Merge pull request #[0-9]+" | head -20 | while read -r line; do
+            # Extract PR title after the branch name
+            PR_TITLE=$(echo "$line" | sed -E 's/^Merge pull request #[0-9]+ from [^[:space:]]+ //')
+            # Only add if we got a meaningful title
+            if [ -n "$PR_TITLE" ] && [ "$PR_TITLE" != "$line" ]; then
+              echo "- $PR_TITLE" >> changelog.md
+            fi
+          done
         else
-          # Get PR titles between tags
-          git log ${PREVIOUS_TAG}..HEAD --pretty=format:"- %s" --grep="Merge pull request" | sed 's/Merge pull request #[0-9]* from [^ ]* //' >> changelog.md
+          # Get PR titles between tags - more robust extraction
+          git log ${PREVIOUS_TAG}..${NEW_TAG} --pretty=format:"%s" | grep -E "^Merge pull request #[0-9]+" | while read -r line; do
+            # Extract PR title after the branch name
+            PR_TITLE=$(echo "$line" | sed -E 's/^Merge pull request #[0-9]+ from [^[:space:]]+ //')
+            # Only add if we got a meaningful title
+            if [ -n "$PR_TITLE" ] && [ "$PR_TITLE" != "$line" ]; then
+              echo "- $PR_TITLE" >> changelog.md
+            fi
+          done
         fi
         
         echo "" >> changelog.md
