@@ -66,11 +66,27 @@ jobs:
         CURRENT_VERSION="${{ steps.current-version.outputs.version }}"
         BUMP_TYPE="${{ steps.bump-type.outputs.type }}"
         
+        # Remove pre-release and build metadata (everything after - or +)
+        # This handles versions like 1.2.3-alpha, 1.2.3+build.1, 1.2.3-rc.1+build
+        BASE_VERSION=${CURRENT_VERSION%%[-+]*}
+        echo "Base version (without pre-release/build): $BASE_VERSION"
+        
         # Split version into components
-        IFS='.' read -r -a VERSION_PARTS <<< "$CURRENT_VERSION"
-        MAJOR="${VERSION_PARTS[0]}"
-        MINOR="${VERSION_PARTS[1]}"
-        PATCH="${VERSION_PARTS[2]}"
+        IFS='.' read -r -a VERSION_PARTS <<< "$BASE_VERSION"
+        
+        # Extract components with defaults to handle versions with fewer than 3 parts
+        # This handles cases like "1", "1.2", or "1.2.3"
+        MAJOR="${VERSION_PARTS[0]:-0}"
+        MINOR="${VERSION_PARTS[1]:-0}"
+        PATCH="${VERSION_PARTS[2]:-0}"
+        
+        # Validate that we have numeric values
+        if ! [[ "$MAJOR" =~ ^[0-9]+$ ]] || ! [[ "$MINOR" =~ ^[0-9]+$ ]] || ! [[ "$PATCH" =~ ^[0-9]+$ ]]; then
+          echo "ERROR: Invalid version format. Expected numeric values but got: $MAJOR.$MINOR.$PATCH"
+          exit 1
+        fi
+        
+        echo "Current version components: $MAJOR.$MINOR.$PATCH"
         
         # Increment based on bump type
         case "$BUMP_TYPE" in
