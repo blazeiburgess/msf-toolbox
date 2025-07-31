@@ -24,7 +24,7 @@ jobs:
     - name: Install setuptools_scm
       run: |
         python -m pip install --upgrade pip
-        pip install setuptools_scm
+        pip install setuptools_scm packaging
     
     - name: Check version matches tag
       id: version
@@ -34,15 +34,13 @@ jobs:
         # Get tag from GitHub ref
         TAG=${GITHUB_REF#refs/tags/v}
         
-        echo "SCM Version: $SCM_VERSION"
-        echo "Git Tag: $TAG"
+        python scripts/validate_version.py "$SCM_VERSION" "$TAG"
         
-        # Compare versions (setuptools_scm might add local version identifiers)
-        if [[ ! "$SCM_VERSION" =~ ^"$TAG" ]]; then
-          echo "Version mismatch: setuptools_scm=$SCM_VERSION, tag=$TAG"
+        if [ $? -ne 0 ]; then
+          echo "Version validation failed!"
           exit 1
         fi
-        echo "Version validation passed!"
+        
         echo "version=$TAG" >> $GITHUB_OUTPUT
 
   build:
