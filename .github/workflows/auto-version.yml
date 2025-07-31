@@ -103,13 +103,15 @@ jobs:
         # Get the newly created tag
         NEW_TAG="v${{ steps.new-version.outputs.new_version }}"
         
-        # Get the previous tag - using tag list to find the tag before our new one
+        # Get the previous tag by finding the second most recent tag
         # This works correctly even when HEAD is not yet tagged
-        PREVIOUS_TAG=$(git tag --sort=-version:refname | grep -A1 "^${NEW_TAG}$" | tail -1 2>/dev/null || echo "")
+        PREVIOUS_TAG=$(git tag --sort=-version:refname | grep -v "^${NEW_TAG}$" | head -1 2>/dev/null || echo "")
         
-        # If that didn't work (e.g., we're the first tag), try getting any previous tag
-        if [ -z "$PREVIOUS_TAG" ] || [ "$PREVIOUS_TAG" = "$NEW_TAG" ]; then
-          PREVIOUS_TAG=$(git describe --tags --abbrev=0 ${NEW_TAG}^ 2>/dev/null || echo "")
+        # If no previous tag exists (first release), PREVIOUS_TAG will be empty
+        if [ -n "$PREVIOUS_TAG" ]; then
+          echo "Found previous tag: $PREVIOUS_TAG"
+        else
+          echo "No previous tag found - this is the first release"
         fi
         
         # Generate changelog content
@@ -146,9 +148,9 @@ jobs:
         echo "" >> changelog.md
         
         if [ -z "$PREVIOUS_TAG" ]; then
-          git log --format="- @%an" | sort -u | grep -v "actions" >> changelog.md
+          git log --format="- @%an" | sort -u | grep -v "github-actions\[bot\]" >> changelog.md
         else
-          git log ${PREVIOUS_TAG}..HEAD --format="- @%an" | sort -u | grep -v "actions" >> changelog.md
+          git log ${PREVIOUS_TAG}..HEAD --format="- @%an" | sort -u | grep -v "github-actions\[bot\]" >> changelog.md
         fi
         
         echo "" >> changelog.md
