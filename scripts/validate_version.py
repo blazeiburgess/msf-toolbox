@@ -46,10 +46,24 @@ def main():
             sys.exit(1)
         
         # Additional check: for a release tag, setuptools_scm should give us a clean version
-        # (no dev, post, or local parts) when on the exact tag commit
+        # when running on the exact tag commit. Different suffixes indicate different scenarios:
+        #
+        # - is_devrelease (e.g., 1.2.3.dev4): The current commit is 4 commits ahead of the last tag
+        #   This typically happens during development between releases.
+        #
+        # - post is not None (e.g., 1.2.3.post1): A post-release version, usually indicates
+        #   commits after a release tag. Similar to dev but follows PEP 440 post-release format.
+        #
+        # - local is not None (e.g., 1.2.3+g1234567): Contains local version identifiers,
+        #   often includes git commit hash. Indicates the working directory has additional commits.
+        #
+        # For a proper release, none of these should be present - we expect a clean version
+        # that exactly matches the tag (e.g., "1.2.3"). However, we treat these as warnings
+        # rather than errors because the build might still be valid (e.g., for test builds).
         if scm_parsed.is_devrelease or scm_parsed.post is not None or scm_parsed.local is not None:
             print(f"WARNING: setuptools_scm returned a non-release version: {scm_version}")
             print("This may indicate the tag is not on the current commit.")
+            print("Expected a clean version matching the tag for a release build.")
             # We'll allow this to proceed but log the warning
         
         print("Version validation passed!")
