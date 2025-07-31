@@ -204,6 +204,23 @@ jobs:
     - name: Generate changelog
       id: changelog
       run: |
+        # Function to extract PR title from merge commit message
+        # Handles various branch name formats and special characters
+        extract_pr_title() {
+          local commit_msg="$1"
+          # Match "Merge pull request #123 from owner/branch-name " and extract everything after
+          # The branch pattern handles: letters, numbers, -, _, ., / and other allowed GitHub branch chars
+          local pr_title=$(echo "$commit_msg" | sed -E 's/^Merge pull request #[0-9]+ from [^[:space:]]+ //')
+          
+          # Validate that we actually extracted something meaningful
+          if [ -n "$pr_title" ] && [ "$pr_title" != "$commit_msg" ]; then
+            echo "$pr_title"
+            return 0
+          else
+            return 1
+          fi
+        }
+        
         # Get current and previous tags
         CURRENT_TAG=${GITHUB_REF#refs/tags/}
         PREVIOUS_TAG=$(git describe --tags --abbrev=0 $CURRENT_TAG^ 2>/dev/null || echo "")
@@ -219,8 +236,15 @@ jobs:
           # First release
           echo "Initial release of MSF Toolbox" >> changelog.md
         else
-          # Get commit messages between tags
-          git log ${PREVIOUS_TAG}..${CURRENT_TAG} --pretty=format:"- %s" --grep="Merge pull request" | sed 's/Merge pull request #[0-9]* from [^ ]* //' >> changelog.md
+          # Get commit messages between tags - store output first to avoid subshell issues
+          MERGE_COMMITS=$(git log ${PREVIOUS_TAG}..${CURRENT_TAG} --pretty=format:"%s" | grep -E "^Merge pull request #[0-9]+")
+          while IFS= read -r line; do
+            if [ -n "$line" ]; then
+              if PR_TITLE=$(extract_pr_title "$line"); then
+                echo "- $PR_TITLE" >> changelog.md
+              fi
+            fi
+          done <<< "$MERGE_COMMITS"
         fi
         
         echo "" >> changelog.md
