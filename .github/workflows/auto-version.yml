@@ -139,15 +139,19 @@ jobs:
           # First release
           echo "Initial release of MSF Toolbox" >> changelog.md
           echo "" >> changelog.md
-          # List all commits - store output first to avoid subshell issues
-          MERGE_COMMITS=$(git log --pretty=format:"%s" | grep -E "^Merge pull request #[0-9]+" | head -20)
-          while IFS= read -r line; do
-            if [ -n "$line" ]; then
-              if PR_TITLE=$(extract_pr_title "$line"); then
-                echo "- $PR_TITLE" >> changelog.md
+          # List recent commits only (last 90 days) to avoid showing ancient history
+          MERGE_COMMITS=$(git log --since="90 days ago" --pretty=format:"%s" | grep -E "^Merge pull request #[0-9]+" | head -20)
+          if [ -z "$MERGE_COMMITS" ]; then
+            echo "- Initial project setup" >> changelog.md
+          else
+            while IFS= read -r line; do
+              if [ -n "$line" ]; then
+                if PR_TITLE=$(extract_pr_title "$line"); then
+                  echo "- $PR_TITLE" >> changelog.md
+                fi
               fi
-            fi
-          done <<< "$MERGE_COMMITS"
+            done <<< "$MERGE_COMMITS"
+          fi
         else
           # Get PR titles between tags - store output first to avoid subshell issues
           MERGE_COMMITS=$(git log ${PREVIOUS_TAG}..${NEW_TAG} --pretty=format:"%s" | grep -E "^Merge pull request #[0-9]+")
@@ -165,9 +169,11 @@ jobs:
         echo "" >> changelog.md
         
         if [ -z "$PREVIOUS_TAG" ]; then
-          git log --format="- @%an" | sort -u | grep -v "github-actions\[bot\]" >> changelog.md
+          # For first release, show contributors from last 90 days (consistent with commits)
+          git log --since="90 days ago" --format="- @%an" | sort -u | grep -v "github-actions\[bot\]" >> changelog.md
         else
-          git log ${PREVIOUS_TAG}..HEAD --format="- @%an" | sort -u | grep -v "github-actions\[bot\]" >> changelog.md
+          # Use NEW_TAG instead of HEAD to match the commit range
+          git log ${PREVIOUS_TAG}..${NEW_TAG} --format="- @%an" | sort -u | grep -v "github-actions\[bot\]" >> changelog.md
         fi
         
         echo "" >> changelog.md
