@@ -186,10 +186,10 @@ jobs:
         
         if [ -z "$PREVIOUS_TAG" ]; then
           # For first release, show contributors from last 90 days (consistent with commits)
-          git log --since="90 days ago" --format="- @%an" | sort -u | grep -v "github-actions\[bot\]" >> changelog.md
+          git log --since="90 days ago" --format="- @%an" | sort -u | grep -v "github-actions\[bot\]" || true >> changelog.md
         else
           # Use NEW_TAG instead of HEAD to match the commit range
-          git log ${PREVIOUS_TAG}..${NEW_TAG} --format="- @%an" | sort -u | grep -v "github-actions\[bot\]" >> changelog.md
+          git log ${PREVIOUS_TAG}..${NEW_TAG} --format="- @%an" | sort -u | grep -v "github-actions\[bot\]" || true >> changelog.md
         fi
         
         echo "" >> changelog.md
