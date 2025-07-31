@@ -19,7 +19,7 @@ from packaging.version import parse, Version
 
 def main():
     if len(sys.argv) != 3:
-        print("Usage: validate_version.py <scm_version> <git_tag>")
+        print("Usage: python scripts/validate_version.py <scm_version> <git_tag>")
         sys.exit(1)
     
     scm_version = sys.argv[1]
