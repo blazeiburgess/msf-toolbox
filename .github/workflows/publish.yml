@@ -114,8 +114,8 @@ jobs:
     
     - name: Wait for TestPyPI availability
       run: |
-        echo "Waiting 120 seconds for package to be available on TestPyPI..."
-        sleep 120
+        echo "Waiting 240 seconds for package to be available on TestPyPI..."
+        sleep 240
     
     - name: Test installation from TestPyPI
       run: |
@@ -168,8 +168,8 @@ jobs:
     
     - name: Wait for PyPI availability
       run: |
-        echo "Waiting 120 seconds for package to be available on PyPI..."
-        sleep 120
+        echo "Waiting 240 seconds for package to be available on PyPI..."
+        sleep 240
     
     - name: Test installation from PyPI
       run: |
@@ -183,9 +183,9 @@ jobs:
         print(f'Successfully imported msftoolbox')
         
         # Test basic imports
-        from msftoolbox.azure import AzureKeyVault
-        from msftoolbox.sharepoint import SharepointFiles
-        from msftoolbox.dhis2 import DHIS2DataClient
+        from msftoolbox.azure.azure_keyvault import AzureKeyVaultClient
+        from msftoolbox.sharepoint.files import SharePointFileClient
+        from msftoolbox.dhis2.data import Dhis2DataValuesClient
         print('All basic imports successful')
         "
 
